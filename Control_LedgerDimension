@@ -1,0 +1,351 @@
+ //I metodi validate e jumpRef - l'errore dato è che il dimAccountController ha bisogno di un tipo list che però non so quale passare. (su AX non c'era bisogno)
+ //I metodi loadSegments, loadAutoCompleteData - l'errore è che non esistono all'interno della classe DimensionDynamicAccountController quei metodi.
+ //All'interno di questa classe sono presenti i metodi che sono stati utilizzati su AX. In fondo i metodi contenuti nella classe DimensionDynamicAccountController
+ //non più presenti su d365. Con * sono indicate le righe che danno errore. Per adesso sono stati commentati nella soluzione per permettere la build.
+ 
+ [Form]
+public class DYMReceiptsReconciliation extends FormRun
+{
+    LedgerJournalTable      ledgerjournalTable;
+    NoYes                   fromTransDaily;
+    DimensionDynamicAccountController dimAccountController;
+
+ 
+ [Control("SegmentedEntry")]
+    class FormGridControl1_LedgerDimension
+    {
+        /// <summary>
+        /// lookup
+        /// </summary>
+        public void lookup()
+        {
+            CustTable::lookupCustomer(this, DYMReceiptsReconciliation.dataAreaId);
+        }
+
+        /// <summary>
+        ///
+        /// </summary>
+        /// <returns></returns>
+        public boolean validate()
+        {
+            boolean isValid;
+
+            isValid = super();
+    *        isValid = dimAccountController.validate() && isValid;
+
+            return isValid;
+        }
+        
+        /// <summary>
+        /// 
+        /// </summary>
+        public void jumpRef()
+        {
+  *          dimAccountController.jumpRef();
+        }
+
+        ///// <summary>
+        /////
+        ///// </summary>
+        public void loadSegments()
+        {
+
+ *           dimAccountController.parmControl(this);
+ *           dimAccountController.loadSegments();
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name = "_e"></param>
+        public void loadAutoCompleteData(LoadAutoCompleteDataEventArgs _e)
+        {
+
+ *           dimAccountController.loadAutoCompleteData(_e);
+        }
+   } 
+}
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+public FormSegmentedEntryControl parmControl(FormSegmentedEntryControl _control = control)
+{
+    if (!prmisDefault(_control))
+    {
+        ledgerDimensionController.parmControl(_control);
+        defaultAccountController.parmControl(_control);
+
+        // Switch the segment separator to allow for better pasting of values into non ledger accounts (single segment) that may contain the default separator
+        if (this.isNonLedgerAccount())
+        {
+            _control.separator('');
+        }
+    }
+
+    return super(_control);
+}
+
+/// <summary>
+///    Validates the controller.
+/// </summary>
+/// <returns>
+///    true if the value is specified and valid or is not specified; otherwise, false.
+/// </returns>
+public boolean validate()
+{
+    DimensionValue          value;
+    DimensionMRUProvider    dimensionMRUProvider = DimensionMRUProvider::getInstance();
+    boolean                 isValid;
+    DimensionValue          actualValue;
+
+
+    changecompany(dataAreaId)
+    {
+        if (this.isNonLedgerAccount())
+        {
+            // Start by assuming combination is valid.
+            value = this.parmControl().getSegment(1).value();
+            this.parmControl().state(SegmentedEntryState::Valid);
+
+            if (!value)
+            {
+                // Empty value is valid
+                return true;
+            }
+
+            changecompany(dataAreaId)
+            {
+                [isValid, actualValue] = this.isValueValidForNonLedgerAccount(value);
+                if (isValid)
+                {
+                    return true;
+                }
+                else
+                {
+                    this.parmControl().state(SegmentedEntryState::Invalid);
+                    return false;
+                }
+            }
+        }
+        else
+        {
+            if (isDefaultAccount)
+            {
+                return defaultAccountController.validate();
+            }
+            else
+            {
+                return ledgerDimensionController.validate();
+            }
+        }
+    }
+}
+
+/// <summary>
+///    Loads a segmented value that was previously stored that contains the main account and account
+///    structure into the control.
+/// </summary>
+public void loadSegments()
+{
+    recId               recId;
+
+    changecompany(dataAreaId)
+    {
+        if (this.isNonLedgerAccount())
+        {
+            // Handle non-ledger account case linked to simple entity
+            this.parmControl().clearSegments();
+
+            recId   = this.getReference();
+
+            // Add a single segment for the control
+            this.parmControl().addSegment("@SYS24500", DimensionAttributeValueCombination::getDisplayValue(recId), true);
+        }
+        else
+        {
+            if (isDefaultAccount)
+            {
+                defaultAccountController.parmControl(this.parmControl());
+
+                defaultAccountController.loadSegments();
+            }
+            else
+            {
+                ledgerDimensionController.parmControl(this.parmControl());
+
+                ledgerDimensionController.loadSegments();
+            }
+        }
+    }
+}
+/// <summary>
+///    Loads a segmented value that was previously stored that contains the main account and account
+///    structure into the control.
+/// </summary>
+public void loadSegments()
+{
+    recId               recId;
+
+    changecompany(dataAreaId)
+    {
+        if (this.isNonLedgerAccount())
+        {
+            // Handle non-ledger account case linked to simple entity
+            this.parmControl().clearSegments();
+
+            recId   = this.getReference();
+
+            // Add a single segment for the control
+            this.parmControl().addSegment("@SYS24500", DimensionAttributeValueCombination::getDisplayValue(recId), true);
+        }
+        else
+        {
+            if (isDefaultAccount)
+            {
+                defaultAccountController.parmControl(this.parmControl());
+
+                defaultAccountController.loadSegments();
+            }
+            else
+            {
+                ledgerDimensionController.parmControl(this.parmControl());
+
+                ledgerDimensionController.loadSegments();
+            }
+        }
+    }
+}
+
+/// <summary>
+///    Provides go to main table functionality.
+/// </summary>
+public void jumpRef()
+{
+    DimensionHierarchyType              hierarchyType;
+    DimensionAttributeValueCombination  combination;
+
+    MenuFunction                        menuFunction;
+    Args                                args = new Args();
+
+    appl.setDefaultCompany(dataAreaId, false);
+
+    hierarchyType = this.getHierarchyType();
+    combination = this.resolveReference();
+
+    switch (hierarchyType)
+    {
+        case DimensionHierarchyType::BankAccount:
+            menuFunction = new MenuFunction(menuitemDisplayStr(BankAccountTable), MenuItemType::Display);
+            if (combination)
+            {
+                args.lookupRecord(BankAccountTable::findByLedgerDimension(combination.RecId));
+            }
+            break;
+
+        case DimensionHierarchyType::Customer:
+            menuFunction = new MenuFunction(menuitemDisplayStr(CustTable), MenuItemType::Display);
+            if (combination)
+            {
+                args.lookupRecord(CustTable::findByLedgerDimension(combination.RecId));
+            }
+            break;
+
+        case DimensionHierarchyType::Employee:
+            menuFunction = new MenuFunction(menuitemdisplaystr(HcmWorker), MenuItemType::Display);
+            if (combination)
+            {
+                args.lookupRecord(HcmWorker::findByPersonnelNumber(combination.DisplayValue));
+            }
+            break;
+
+        case DimensionHierarchyType::FixedAsset:
+            menuFunction = new MenuFunction(menuitemDisplayStr(AssetTable), MenuItemType::Display);
+            if (combination)
+            {
+                args.lookupRecord(AssetTable::findByLedgerDimension(combination.RecId));
+            }
+            break;
+
+        case DimensionHierarchyType::Item:
+            menuFunction = new MenuFunction(menuitemDisplayStr(EcoResProductDetailsExtended), MenuItemType::Display);
+            if (combination)
+            {
+                args.lookupRecord(InventTable::find(combination.DisplayValue));
+            }
+            break;
+
+        case DimensionHierarchyType::Project:
+            menuFunction = new MenuFunction(menuitemDisplayStr(ProjTable), MenuItemType::Display);
+            if (combination)
+            {
+                args.lookupRecord(ProjTable::findByLedgerDimension(combination.RecId));
+                args.refField(fieldNum(ProjTable, ProjId));
+            }
+            break;
+
+        case DimensionHierarchyType::Vendor:
+            menuFunction = new MenuFunction(menuitemDisplayStr(VendTable), MenuItemType::Display);
+            if (combination)
+            {
+                args.lookupRecord(VendTable::findByLedgerDimension(combination.RecId));
+            }
+            break;
+
+        case DimensionHierarchyType::AccountStructure:
+            if (this.isNonLedgerAccount())
+            {
+                // Non-ledger accounts should never have the type of "AccountStructure"
+                Debug::assert(false);
+                break;
+            }
+            else if (isDefaultAccount)
+            {
+                defaultAccountController.jumpRef();
+                return;
+            }
+            else
+            {
+                ledgerDimensionController.jumpRef();
+                return;
+            }
+
+        // <GEERU> // TODO: should we have an Edit form?
+        case DimensionHierarchyType::FixedAssets_RU:
+            menuFunction = new MenuFunction(menuitemdisplaystr(RAssetTable), MenuItemType::Display);
+            if (combination)
+            {
+                args.lookupRecord(RAssetTable::findByLedgerDimension(combination.RecId));
+            }
+            break;
+        case DimensionHierarchyType::RDeferrals:
+            menuFunction = new MenuFunction(menuitemdisplaystr(RDeferralsTable), MenuItemType::Display);
+            if (combination)
+            {
+                args.lookupRecord(RDeferralsTable::findByLedgerDimension(combination.RecId));
+            }
+            break;
+        case DimensionHierarchyType::RCash:
+            menuFunction = new MenuFunction(menuitemdisplaystr(RCashTable), MenuItemType::Display);
+            if (combination)
+            {
+                args.lookupRecord(RCashTable::findByLedgerDimension(combination.RecId));
+            }
+            break;
+        case DimensionHierarchyType::Employee_RU:
+            menuFunction = new MenuFunction(menuitemdisplaystr(HcmWorkerAdvHolderTable_RU), MenuItemType::Display);
+            if (combination)
+            {
+                args.lookupRecord(EmployeeTable_RU::findByEmployeeId(combination.DisplayValue));
+            }
+            break;
+        // </GEERU>
+
+        default:
+            throw error(Error::wrongUseOfFunction(funcName()));
+    }
+
+    args.caller(this.parmControl().owner());
+
+    // Make sure no queries get passed to the jumpRef form
+    menuFunction.copyCallerQuery(CopyCallerQuery::No);
+    menuFunction.run(args);
+}
+        
