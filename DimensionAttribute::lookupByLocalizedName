@@ -1,0 +1,70 @@
+//Questo metodo corrisponde al metodo presente su AX ed è stato interamente copiato e incollato. Tramite i commenti verranno aggiunti gli eventuali adattamenti
+//per permetterne il funzionamento su d365. 
+//Riga 27 la soluzione è stata trovata su shorturl.at/e1689 dove suggerivano l'utilizzo di quel metodo.
+//Riga 32 all'interno della tabella DimensionAttribute è contenuto il metodo getDynamicAccountAttributeName che però accetta in input 
+//TableNameShort (non saprei cosa inserire qua dentro)
+
+
+public static void lookupByLocalizedName(
+    FormStringControl _stringControl,
+    recId _dimensionHierarchy = 0,
+    boolean _excludeMainAccount = false,
+    boolean _constrainToCurrentCOA = false)
+{
+    SysTableLookup          sysTableLookup = SysTableLookup::newParameters(tableNum(TmpDimensionAttribute), _stringControl);
+    Query                   query = new Query();
+    QueryBuildDataSource    qbds = query.addDataSource(tableNum(TmpDimensionAttribute));
+    TmpDimensionAttribute   tmpDimAttr;
+    DimensionAttribute      dimAttr;
+    Query                   dimAttQuery;
+    QueryRun                dimAttQueryRun;
+    QueryBuildDataSource    dimAttQBDS, dimHierQBDS, coaQBDS;
+
+    dimAttQuery = new Query();
+
+    dimAttQBDS = dimAttQuery.addDataSource(tableNum(DimensionAttribute));
+    dimAttQBDS.addRange(fieldNum(DimensionAttribute, Type)).value(queryNotValue(DimensionAttributeType::DynamicAccount));
+    //dimAttQBDS.addRange(fieldNum(DimensionAttribute, Type)).value(SysQuery::valueNot(DimensionAttributeType::DynamicAccount));
+
+    if (_excludeMainAccount)
+    {
+        dimAttQBDS.addRange(fieldNum(DimensionAttribute, RecId)).value(SysQuery::valueNot(DimensionAttribute::getMainAccountDimensionAttribute()));
+        //dimAttQBDS.addRange(fieldNum(DimensionAttribute, RecId)).value(SysQuery::valueNot(DimensionAttribute::getDynamicAccountAttributeName()));
+
+    }
+
+    if (_dimensionHierarchy)
+    {
+        dimHierQBDS = dimAttQBDS.addDataSource(tableNum(DimensionHierarchyLevel));
+        dimHierQBDS.joinMode(JoinMode::ExistsJoin);
+        dimHierQBDS.fetchMode(QueryFetchMode::One2One);
+        dimHierQBDS.addLink(fieldNum(DimensionAttribute, RecId), fieldNum(DimensionHierarchyLevel, DimensionAttribute));
+        dimHierQBDS.addRange(fieldNum(DimensionHierarchyLevel, DimensionHierarchy)).value(queryValue(_dimensionHierarchy));
+    }
+
+    if (_constrainToCurrentCOA)
+    {
+        coaQBDS = dimAttQBDS.addDataSource(tableNum(DimensionAttributeSetItem));
+        coaQBDS.joinMode(JoinMode::ExistsJoin);
+        coaQBDS.fetchMode(QueryFetchMode::One2One);
+        coaQBDS.addLink(fieldNum(DimensionAttribute, RecId), fieldNum(DimensionAttributeSetItem, DimensionAttribute));
+        coaQBDS.addRange(fieldNum(DimensionAttributeSetItem, DimensionAttributeSet)).value(queryValue(DimensionCache::getDimensionAttributeSetForLedger()));
+    }
+
+    dimAttQueryRun = new QueryRun(dimAttQuery);
+    while (dimAttQueryRun.next())
+    {
+        dimAttr = dimAttQueryRun.get(tableNum(DimensionAttribute));
+
+        tmpDimAttr.clear();
+        tmpDimAttr.Name = dimAttr.localizedName();
+        tmpDimAttr.insert();
+    }
+
+    // BP Deviation Documented
+    sysTableLookup.parmTmpBuffer(tmpDimAttr);
+
+    sysTableLookup.addLookupfield(fieldNum(TmpDimensionAttribute, Name));
+    sysTableLookup.parmQuery(query);
+    sysTableLookup.performFormLookup();
+}}
