@@ -1,5 +1,3 @@
- //I metodi validate e jumpRef - l'errore dato è che il dimAccountController ha bisogno di un tipo list che però non so quale passare. (su AX non c'era bisogno)
- //I metodi loadSegments, loadAutoCompleteData - l'errore è che non esistono all'interno della classe DimensionDynamicAccountController quei metodi.
  //All'interno di questa classe sono presenti i metodi che sono stati utilizzati su AX. In fondo i metodi contenuti nella classe DimensionDynamicAccountController
  //non più presenti su d365. Con * sono indicate le righe che danno errore. Per adesso sono stati commentati nella soluzione per permettere la build.
  
